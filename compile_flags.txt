@@ -1,4 +1,0 @@
--O3
--mtune=native
--I
-/opt/local/include
