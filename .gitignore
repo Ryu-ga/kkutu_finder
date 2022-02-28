@@ -61,3 +61,4 @@ dkms.conf
 # junkfile
 *.db
 *.txt
+finder
