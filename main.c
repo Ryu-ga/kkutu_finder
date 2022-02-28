@@ -220,7 +220,7 @@ int main(void) {
     setlocale(LC_ALL, "en_US.UTF-8");
     struct sTrie* root = getNode(0);
     FILE* db_f;
-    db_f = fopen("/Users/ryuga/Workspace/C/trie/words.db", "r");
+    db_f = fopen("words.db", "r");
     if (!db_f) {
         fprintf(stderr, "No DB!\n");
         return 0;
