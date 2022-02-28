@@ -1,383 +1,251 @@
 #include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <wchar.h>
 #include <string.h>
+#include <wchar.h>
 #include <locale.h>
-#include <math.h>
+#include <time.h>
 
-void cls();
+#define MAXWCHARLEN 30
+#define MAXTREELEN 1000
 
-typedef struct Word Word;
-typedef struct WordBase WordBase;
-typedef struct WordGroup WordGroup;
-typedef struct Cache Cache;
-
-struct Word {
-	int p;
-	int score;
+struct sTrie {
+    wchar_t p[MAXWCHARLEN];
+    size_t p_len;
+    struct sTrie** kids;
+    size_t len;
+    bool isEnd;
 };
 
-struct WordBase {
-	Word* words;
-	size_t size;
-	wchar_t buffer[];
+struct sTries {
+	struct sTrie* tries;
+	size_t len;
+	bool check[MAXTREELEN];
 };
 
+struct sTrie* getNode(const wchar_t w) {
+	static struct sTries* tries = NULL;
+	static size_t trie_index = 0;
+	static size_t len = 0;
 
-struct WordGroup {
-	WordBase* base;
-	Word* words;
-	size_t size;
-};
-
-struct Cache {
-	wchar_t* start;
-	wchar_t* mission;
-	Word* words;
-	size_t size;
-};
-
-enum Mode{
-    Mission,
-    NoMission
-};
-
-struct CommandLine {
-    wchar_t* buffer;
-    wchar_t* start;
-    wchar_t* mission;
-};
-
-enum Filter_opt {
-    Startwith,
-    Contain,
-    Howmany,
-};
-
-void SwapWord(Word *A, Word *b);
-void InsertionSort(Word A[], int n);
-void InsertBlock(Word A[], int i, int k, Word T[]);
-void FastInsertionSortRec(Word A[], int n, float c);
-
-WordBase* MakeWordBase(const char* file_path);
-void FreeWordBase(WordBase* base);
-
-void FreeWordGroup(WordGroup* words);
-
-struct CommandLine GetCommandLine();
-
-WordGroup* Filter(const WordGroup* restrict in, enum Filter_opt option, const wchar_t* key, const int Max);
-
-int main(void) {
-    setlocale(LC_ALL, "");
-    
-    WordBase* base = MakeWordBase("words.db");
-
-    if (!base) return 1;
-
-    enum Mode flag = NoMission;
-
-    WordGroup baseGroup;
-    baseGroup.base = base;
-    baseGroup.words = base->words;
-    baseGroup.size = base->size;
-    WordGroup* Out = NULL;
-
-	struct CommandLine cmd;
-	
-	struct Cache* caches = malloc(sizeof(struct Cache));
-	int cache_len = 0;
-	int cache_cap = 1;
-
-    const int Max = 44;
-    while(1) {
-		bool use_cache = false;
-        cmd = GetCommandLine();
-		cls();
-        if (!cmd.start) continue;
-        if (!cmd.mission) flag = NoMission;
-        else flag = Mission;
-		
-		for (int i = 0;i < cache_len;i++) {
-			if (caches[i].mission == NULL) continue;
-			if (wcscmp(caches[i].start, cmd.start) == 0 && wcscmp(caches[i].mission, cmd.mission) == 0) {
-				Out->base = base;
-				Out->words = caches[i].words;
-				Out->size = caches[i].size;
-				use_cache = true;
-				break;
-			}
-		}
-
-		if (use_cache == false) {
-			if (flag == NoMission) {
-				Out = Filter(&baseGroup, Startwith, cmd.start, Max);
-				
-				if (Out == NULL) continue;
-			} else if (flag == Mission) {
-				if (wcscmp(cmd.start, L"") == 0) {
-					wchar_t* p = wcschr(cmd.mission, L'\n');
-					*p = L'\0';
-					Out = Filter(&baseGroup, Howmany, cmd.mission, 0);
-				} else {
-					if (cmd.mission[0] == L'\0') continue;
-					WordGroup* tmp = Filter(&baseGroup, Startwith, cmd.start, 0);
-					if (tmp == NULL) continue;
-					Out = Filter(tmp, Howmany, cmd.mission, 0);
-					FreeWordGroup(tmp);
-					if (Out == NULL) continue;
-				}
-
-				FastInsertionSortRec(Out->words, Out->size, 3);
-			}
-		}
-        
-		for (int i = 0;i < (Out->size < Max ? Out->size : Max);i++)
-            wprintf(L"%S\n", Out->base->buffer + Out->words[i].p);
-
-		if (use_cache == false) {
-			if (cache_cap <= cache_len) {
-				caches = realloc(caches, sizeof(struct Cache)*(cache_cap*=2));
-				if (caches == NULL) {
-					fprintf(stderr, "realloc failed\n");
-					return 1;
-				}
-			}
-	
-			caches[cache_len].start = malloc(sizeof(wchar_t)*(wcslen(cmd.start) + 1));
-			wcscpy(caches[cache_len].start, cmd.start);
-			if (cmd.mission != NULL) {
-				caches[cache_len].mission = malloc(sizeof(wchar_t)*(wcslen(cmd.mission) + 1));
-				wcscpy(caches[cache_len].mission, cmd.mission);
-			}
-			caches[cache_len].words = Out->words;
-			caches[cache_len].size = Out->size;
-			cache_len++;
-		}
+	if (tries == NULL) {
+		tries = malloc(sizeof(struct sTries));
+		tries[trie_index].tries = malloc(sizeof(struct sTrie)*MAXTREELEN);
+		tries[trie_index].len = 0;
 	}
 
-    FreeWordBase(base);
-    return 0;
+	len++;
+	if (len%MAXTREELEN == 0) {
+		trie_index++;
+		tries = realloc(tries, sizeof(struct sTries)*(trie_index + 1));
+		tries[trie_index].tries = malloc(sizeof(struct sTrie)*MAXTREELEN);
+		tries[trie_index].len = 0;
+	}
+
+    struct sTrie* pNode = &tries[trie_index].tries[len%MAXTREELEN];
+    memset(pNode->p, 0, sizeof(pNode->p));
+    pNode->p[0] = w;
+    pNode->p_len = 1;
+    pNode->isEnd = false;
+    pNode->kids = NULL;
+    pNode->len = 0;
+
+    return pNode;
 }
 
-WordBase* MakeWordBase(const char* file_path) {
-    FILE* db_f;
-    db_f = fopen(file_path, "r");
-    if (!db_f) {
-        fprintf(stderr, "Failed to Read DB\n");
-        return NULL;
+void insertNode(register struct sTrie* node_p, register wchar_t* wcs_p) {
+    register struct sTrie* p,* child;
+    register long i, j;
+    
+	while(1) {
+		Loop:
+		if (*wcs_p == L'\0') {
+			node_p->isEnd = true;
+			return;
+		}
+
+		for (i = 0;i < node_p->len;++i) {
+			if (node_p->kids[i]->p[0] == *wcs_p) {
+				node_p = node_p->kids[i];
+				wcs_p++;
+				goto Loop;
+			}
+		}
+
+		node_p->kids = realloc(node_p->kids, sizeof(struct sTrie*)*(node_p->len + 1));
+		child = getNode(*wcs_p);
+		node_p->kids[node_p->len] = child;
+		node_p->len++;
+
+		for (i = 0;i < node_p->len;++i) {
+			p = node_p->kids[i];
+			for (j = i - 1;j >= 0 && node_p->kids[j]->p[0] > p->p[0];--j) {
+				node_p->kids[j + 1] = node_p->kids[j];
+			}
+
+			node_p->kids[j + 1] = p;
+		}
+
+		node_p = child;
+		wcs_p++;
+	}
+}
+
+void printNode(register struct sTrie* node_p, wchar_t* wcs, int level) {
+    if (node_p->isEnd) {
+        wcs[level] = L'\0';
     }
 
-    fseek(db_f, 0, SEEK_END);
-    long db_size = ftell(db_f);
-    rewind(db_f);
+    for (register long i = 0;i < node_p->len;++i) {
+        wcs[level] = node_p->kids[i]->p[0];
+        printNode(node_p->kids[i], wcs, level + 1);
+    }
+}
 
-    WordBase* base = malloc(sizeof(WordBase) + sizeof(wchar_t)*db_size);
-    memset(base, 0, sizeof(WordBase) + sizeof(wchar_t)*db_size);
-    for (wchar_t c = getwc(db_f); c!= EOF; c = getwc(db_f))
-        if (c == L'\n')
-            base->size++;
-    rewind(db_f);
+struct Word {
+    wchar_t* word;
+    size_t len;
+};
 
-    base->size++;
-    base->words = malloc(sizeof(Word)*base->size);
-    base->size--;
+struct sWords {
+    struct Word* words;
+    size_t len;
+    size_t cap;
+};
 
-    int p = 0;
-    int length = 1;
+void CompressTrie(struct sTrie* node_p) {
+    if (node_p->isEnd || node_p->len > 1) {
+        for (int i = 0;i < node_p->len;++i)
+            CompressTrie(node_p->kids[i]);
+		return;
+    } else {
+        struct sTrie* child = node_p->kids[0];
+        if (node_p->p_len >= MAXWCHARLEN - 1) {
+            CompressTrie(child);
+            return;
+        }
+
+        node_p->p[node_p->p_len]  = child->p[0];
+        node_p->p_len++;
+        node_p->isEnd = child->isEnd;
+        free(node_p->kids);
+        node_p->kids = child->kids;
+        node_p->len = child->len;
+        CompressTrie(node_p);
+    }
+}
+
+void sprintNode(struct sWords* words, register struct sTrie* node_p, wchar_t* wcs, size_t level) {
+    if (node_p->isEnd) {
+        wcs[level] = L'\0';
+        if (words->len >= words->cap) {
+            words->cap += 40;
+            words->words = realloc(words->words, sizeof(struct Word)*(words->cap));
+        }
+        words->words[words->len].len = wcslen(wcs);
+        words->words[words->len].word = malloc(sizeof(wchar_t*)*(words->words[words->len].len + 1));
+        wcsncpy(words->words[words->len].word, wcs, words->words[words->len].len);
+        words->words[words->len].word[words->words[words->len].len] = L'\0';
+        words->len++;
+    }
+    for (long i = 0;i < node_p->len;++i) {
+        wcsncpy(wcs + level, node_p->kids[i]->p, node_p->kids[i]->p_len);
+        sprintNode(words, node_p->kids[i], wcs, level + node_p->kids[i]->p_len);
+    }
+}
+
+struct sTrie* startwithNode(register struct sTrie* node_p, register const wchar_t* wcs_p) {
+    Start:
+    if (*wcs_p == L'\0')
+        return node_p;
+
+    register size_t start = 0;
+    register size_t end = node_p->len;
+    register size_t mid;
+    
+
+    while (start < end) {
+        mid = (start + end)/2;
+        if (node_p->kids[mid]->p[0] == *wcs_p) {
+            if (wcsncmp(node_p->kids[mid]->p, wcs_p, node_p->kids[mid]->p_len) == 0) {
+                wcs_p += node_p->kids[mid]->p_len;
+                node_p = node_p->kids[mid];
+                goto Start;
+            }
+            return NULL;
+        } else if (node_p->kids[mid]->p[0] < *wcs_p) {
+            start = mid + 1;
+        } else
+            end = mid;
+    }
+
+    return NULL;
+}
+
+int compare(const void* a, const void* b) {
+    const struct Word* word1 = a;
+    const struct Word* word2 = b;
+
+    if (word1->len > word2->len)
+        return -1;
+    if (word1->len < word2->len)
+        return 1;
+
+    return 2;
+}
+
+void PrintStartWith(struct sTrie* node, const wchar_t* wcs_p) {
+    wchar_t tmp[1000];
+    int level = swprintf(tmp, 1000, L"%S", wcs_p);
+    node = startwithNode(node, wcs_p);
+	if (node == NULL) {
+		printf("No match!\n");
+		return;
+	}
+    struct sWords words;
+    words.len = 0;
+    words.cap = 1;
+    words.words = malloc(sizeof(struct Word));
+    sprintNode(&words, node, tmp, level);
+
+    qsort(words.words, words.len, sizeof(struct Word), compare);
+
+    for (register int i = 0;i < (40 < words.len ? 40 : words.len);++i) {
+      wprintf(L"%S\n", words.words[i].word);
+    }
+}
+
+int main(void) {
+    setlocale(LC_ALL, "en_US.UTF-8");
+    struct sTrie* root = getNode(0);
+    FILE* db_f;
+    db_f = fopen("/Users/ryuga/Workspace/C/trie/words.db", "r");
+    if (!db_f) {
+        fprintf(stderr, "No DB!\n");
+        return 0;
+    }
 
     while(1) {
         size_t size;
-        wchar_t* str = fgetwln(db_f, &size);
-        if (size == 0) break;
+        wchar_t* wcs = fgetwln(db_f, &size);
+        if (size == 0)
+            break;
         
-        base->words[length].p = p;
-        base->words[length].score = size*10;
-
-        for (int i = 0;i < size - 1;i++)
-            if ((str[i] - 0xAC00)%28 == 0) base->words[length].score++;
-
-        wcscpy(base->buffer + p, str);
-        base->buffer[p + size - 1] = L'\0';
-
-        p += size;
-        length++;
+        wcs[size -2] = L'\0';
+        insertNode(root, wcs);
     }
-
-	FastInsertionSortRec(base->words, base->size, 3);
-
     fclose(db_f);
 
-    return base;
-}
-
-void FreeWordBase(WordBase* base) {
-	free(base->words);
-	free(base);
-}
-
-void FreeWordGroup(WordGroup* words) {
-	free(words->words);
-	free(words);
-}
-
-struct CommandLine GetCommandLine() {
-	struct CommandLine cmd = {NULL, NULL, NULL};
-	size_t size;
-	cmd.buffer = fgetwln(stdin, &size);
-
-	if (size == 0) {
-		return cmd;
+    CompressTrie(root);
+    while(1) {
+		size_t size;
+		wchar_t* cmd = fgetwln(stdin, &size);
+		cmd[size - 1] = L'\0';
+		float start = (float)clock()/CLOCKS_PER_SEC;
+		PrintStartWith(root, cmd);
+		float end = (float)clock()/CLOCKS_PER_SEC;
+		printf("time: %f\n", end - start);
 	}
-
-	cmd.start = cmd.buffer;
-	
-	cmd.mission = wcsstr(cmd.buffer, L" ");
-	if (cmd.mission) {
-		cmd.mission[0] = L'\0';
-		cmd.mission++;
-		if (*cmd.mission == L'\0')
-			return cmd;
-	}
-
-	if (*cmd.start == L'\0')
-		return cmd;
-
-	cmd.start[size - 1] = L'\0';
-	return cmd;
-}
-
-WordGroup* Filter(const WordGroup* restrict in, enum Filter_opt option, const wchar_t* key, const int Max) {
-    WordGroup* out = malloc(sizeof(WordGroup));
-    out->base = in->base;
-    out->words = malloc(sizeof(Word)*in->size);
-    out->size = 0;
-    int limit = Max ? Max : in->size;
-    switch(option) {
-        case Startwith:
-			for (int i = 0;i < in->size;i++) {
-                if (wcsncmp(key, in->base->buffer + in->words[i].p, wcslen(key)) == 0) {
-                    out->words[out->size].p = in->words[i].p;
-					out->words[out->size].score = in->words[i].score;
-                    out->size++;
-
-                    if (out->size == limit)
-                        break;
-                }
-            }
-        break;
-        case Contain:
-            for (int i = 0;i < in->size;i++) {
-                if (wcsstr(in->base->buffer + in->words[i].p, key)) {
-                    out->words[out->size].p = in->words[i].p;
-					out->words[out->size].score = in->words[i].score;
-                    out->size++;
-
-                    if (out->size == limit)
-                        break;
-                }
-            }
-        break;
-        case Howmany:
-            for (int i = 0;i < in->size;i++) {
-                int count = 0;
-                wchar_t* p = in->base->buffer + in->words[i].p - 1;
-                while((p = wcsstr(p + 1, key)))
-                    count++;
-                if (count) {
-                    out->words[out->size].p = in->words[i].p;
-                    out->words[out->size].score = count*1000 + in->words[i].score;
-                    out->size++;
-
-                    if (out->size == limit)
-                        break;
-                }
-            }
-        break;
-
-    }
-
-	if (out->size)
-		out->words = realloc(out->words, sizeof(Word)*out->size);
-	else {
-		free(out->words);
-		free(out);
-		out = NULL;
-	}
-
-    return out;
-}
-
-void SwapWord(Word* a, Word *b) {
-	Word temp;
-	temp = *a;
-	*a = *b;
-	*b = temp;
-}
-
-void InsertionSort(Word A[], int n) {
-	for (int i = 1;i < n;i++) {
-		int j = i - 1;
-		Word v = A[i];
-		while (j >= 0 && A[j].score < v.score) {
-			A[j + 1] = A[j];
-			--j;
-		}
-		A[j + 1] = v;
-	}
-}
-
-void InsertBlock(Word A[], int i, int k, Word T[]) {
-	for (int j = 0;j < k;j++)
-		T[j] = A[i + j];
-	int l = k - 1;
-	int j = i - 1;
-
-	while (l >= 0) {
-		while (j >= 0 && A[j].score < T[l].score) {
-			A[j + l + 1] = A[j];
-			--j;
-		}
-		A[j + l + 1] = T[l];
-		--l;
-	}
-}
-
-void FastInsertionSortRec(Word A[], int n, float c) {
-	int h = (float) log(n)/log(c);
-	if (h <= 1)
-		return InsertionSort(A, n);
-	float exp = (float) (h - 1)/h;
-	int k = pow(n, exp);
-	if (n <= k || k <= 5)
-		return InsertionSort(A, n);
-	Word* T = malloc(sizeof(Word)*k);
-	T[0] = A[n - 1];
-	for (int i = 0;i < n;i += k) {
-		int b = k < n - 1 ? k : n - 1;
-		FastInsertionSortRec(A + i, b, c);
-		InsertBlock(A, i, b, T);
-	}
-
-	free(T);
-}
-
-void SortWordGroup(WordGroup* words) {
-    int i, j;
-	Word word;
-    i = words->size - 1;
-    while( i-- > 0) {
-        j = i;
-        word = words->words[i];
-        while (++j < words->size && word.score < words->words[j].score);
-        
-        if (--j == i) continue;
-        memcpy(words->words + i, words->words + i + 1, sizeof(Word)*(j - i));
-        words->words[j] = word;
-    }
-}
-
-void cls() {
-	system("clear");
+    return 0;
 }

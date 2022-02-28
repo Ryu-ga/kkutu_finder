@@ -1,22 +1,11 @@
-CFLAGS=-O3 -mtune=native -I/opt/local/include
-LDFLAGS=-L/opt/local/lib
+DEP=
 
-DBCFLAGS=-mtune=native -I/opt/local/include
-DBGFLAGS=-g3 -fsanitize=bounds
-SRCS=main.c
-all: kkutu
-	
-kkutu: ${SRCS}
-	${CC} -o kkutu ${SRCS} ${CFLAGS} ${LDFLAGS}
-	
-kkutu_debug: ${SRCS}
-	${CC} -o kkutu_debug ${SRCS} ${DBCFLAGS} ${LDFLAGS} ${DBGFLAGS}
-	
-run: kkutu
-	./kkutu
-	
-debug: kkutu_debug
-	./kkutu_debug
+CFLAGS=-O3 -arch arm64 -mtune=native `pkg-config --cflags ${DEP}` -pthread -std=c11
+LDFLAGS=`pkg-config --libs ${DEP}`
+all: finder
+
+finder: main.c
+	${CC} main.c -o finder ${CFLAGS} ${LDFLAGS} ${DEBUGFLAGS}
 
 clean:
-	rm -rf ./kkutu ./kkutu_debug
+	rm -rf trie
