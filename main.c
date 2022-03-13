@@ -118,6 +118,12 @@ struct sWords {
     size_t cap;
 };
 
+struct sMission {
+	int score;
+	int len;
+	int p;
+};
+
 void CompressTrie(struct sTrie* node_p) {
     if (node_p->isEnd || node_p->len > 1) {
         for (int i = 0;i < node_p->len;++i)
@@ -199,6 +205,22 @@ int compare(const void* a, const void* b) {
     return 2;
 }
 
+int compareMission(const void* a, const void* b) {
+    const struct sMission* word1 = a;
+    const struct sMission* word2 = b;
+
+	if (word1->score > word2->score)
+		return -1;
+	if (word1->score < word2->score)
+		return 1;
+    if (word1->len > word2->len)
+        return -1;
+    if (word1->len < word2->len)
+        return 1;
+
+    return 2;
+}
+
 void PrintStartWith(struct sTrie* node, const wchar_t* wcs_p) {
     wchar_t tmp[1000];
     int level = swprintf(tmp, 1000, L"%S", wcs_p);
@@ -217,6 +239,36 @@ void PrintStartWith(struct sTrie* node, const wchar_t* wcs_p) {
 
     for (register int i = 0;i < (40 < words.len ? 40 : words.len);++i) {
       wprintf(L"%S\n", words.words[i].word);
+    }
+}
+
+void PrintStartWithMission(struct sTrie* node, const wchar_t* wcs_p, const wchar_t* mission) {
+    wchar_t tmp[1000];
+    int level = swprintf(tmp, 1000, L"%S", wcs_p);
+    node = startwithNode(node, wcs_p);
+	if (node == NULL) {
+		printf("No match!\n");
+		return;
+	}
+    struct sWords words;
+    words.len = 0;
+    words.cap = 1;
+    words.words = malloc(sizeof(struct Word));
+    sprintNode(&words, node, tmp, level);
+
+	struct sMission missions[words.len];
+	for (register int i = 0;i < words.len;++i) {
+		int score = 0;
+		for (wchar_t* c = wcsstr(words.words[i].word, mission);c != NULL;c = wcsstr(c + 1 , mission),score++);
+		missions[i].score = score;
+		missions[i].p = i;
+		missions[i].len = words.words[i].len;
+	}
+
+    qsort(missions, words.len, sizeof(struct sMission), compareMission);
+
+    for (register int i = 0;i < (40 < words.len ? 40 : words.len);++i) {
+      wprintf(L"%S\n", words.words[missions[i].p]);
     }
 }
 
@@ -246,9 +298,15 @@ int main(void) {
 		size_t size;
 		wchar_t* cmd = fgetwln(stdin, &size);
 		cmd[size - 1] = L'\0';
+		wchar_t* ptr,* mission;
+		wcstok(cmd, L" ", &ptr);
+		mission = wcstok(NULL, L" ", &ptr);
 		cls();
 		float start = (float)clock()/CLOCKS_PER_SEC;
-		PrintStartWith(root, cmd);
+		if (mission)
+			PrintStartWithMission(root, cmd, mission);
+		else
+			PrintStartWith(root, cmd);
 		float end = (float)clock()/CLOCKS_PER_SEC;
 		printf("time: %f\n", end - start);
 	}
