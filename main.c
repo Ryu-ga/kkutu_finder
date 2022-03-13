@@ -7,6 +7,10 @@
 #include <locale.h>
 #include <time.h>
 
+void cls() {
+	system("clear");
+}
+
 #define MAXWCHARLEN 30
 #define MAXTREELEN 1000
 
@@ -242,6 +246,7 @@ int main(void) {
 		size_t size;
 		wchar_t* cmd = fgetwln(stdin, &size);
 		cmd[size - 1] = L'\0';
+		cls();
 		float start = (float)clock()/CLOCKS_PER_SEC;
 		PrintStartWith(root, cmd);
 		float end = (float)clock()/CLOCKS_PER_SEC;
