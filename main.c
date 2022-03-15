@@ -151,7 +151,7 @@ void sprintNode(struct sWords* words, register struct sTrie* node_p, wchar_t* wc
         wcs[level] = L'\0';
         if (words->len >= words->cap) {
 			if (words->cap > 100)
-				words->cap = 40;
+				words->cap += 40;
 			else
 				words->cap *= 2;
             words->words = realloc(words->words, sizeof(struct Word)*(words->cap));
