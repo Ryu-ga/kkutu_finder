@@ -8,7 +8,7 @@
 #include <time.h>
 
 void cls() {
-	system("clear");
+	printf("\e[1;1H\e[2J");
 }
 
 #define MAXWCHARLEN 30
